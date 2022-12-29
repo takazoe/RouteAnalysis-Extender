@@ -1,0 +1,7 @@
+title: Propaties
+tooltip: Tooltip
+author: "zoe"
+references:
+engine:
+  clean: false
+  automate: false
