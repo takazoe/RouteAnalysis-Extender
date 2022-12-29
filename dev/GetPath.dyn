@@ -1,0 +1,441 @@
+{
+  "Uuid": "5b9dd10b-2f6c-411d-bfec-6902c07fbff6",
+  "IsCustomNode": false,
+  "Description": null,
+  "Name": "GetPath",
+  "ElementResolver": {
+    "ResolutionMap": {
+      "Revit.Elements.FamilyInstance": {
+        "Key": "Revit.Elements.FamilyInstance",
+        "Value": "RevitNodes.dll"
+      },
+      "List": {
+        "Key": "List",
+        "Value": "BuiltIn.ds"
+      },
+      "DesignScript.Builtin.Dictionary": {
+        "Key": "DesignScript.Builtin.Dictionary",
+        "Value": "DesignScriptBuiltin.dll"
+      },
+      "Document.ActiveView": {
+        "Key": "Revit.Application.Document",
+        "Value": "RevitNodes.dll"
+      },
+      "Document.Current": {
+        "Key": "Revit.Application.Document",
+        "Value": "RevitNodes.dll"
+      },
+      "Room.Location": {
+        "Key": "Revit.Elements.Room",
+        "Value": "RevitNodes.dll"
+      },
+      "PathOfTravel.Curves": {
+        "Key": "Revit.Elements.PathOfTravel",
+        "Value": "RevitNodes.dll"
+      },
+      "Revit.Application.Document": {
+        "Key": "Revit.Application.Document",
+        "Value": "RevitNodes.dll"
+      },
+      "Revit.Application.Document.Current": {
+        "Key": "Revit.Application.Document",
+        "Value": "RevitNodes.dll"
+      },
+      "PathOfTravel.ByFloorPlanPoints": {
+        "Key": "Revit.Elements.PathOfTravel",
+        "Value": "RevitNodes.dll"
+      },
+      "Revit.Elements.PathOfTravel.ByFloorPlanPoints": {
+        "Key": "Revit.Elements.PathOfTravel",
+        "Value": "RevitNodes.dll"
+      },
+      "Revit.Elements.PathOfTravel": {
+        "Key": "Revit.Elements.PathOfTravel",
+        "Value": "RevitNodes.dll"
+      }
+    }
+  },
+  "Inputs": [],
+  "Outputs": [],
+  "Nodes": [
+    {
+      "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
+      "NodeType": "PythonScriptNode",
+      "Code": "import sys, clr, json\r\nsys.path.append(r'C:\\Users\\shota\\.conda\\envs\\Dynamo383\\Lib\\site-packages')\r\nimport networkx as nx\r\nfrom itertools import combinations\r\nimport matplotlib\r\nimport matplotlib.pyplot as plt\r\n\r\n\r\ndef read_json_file(path):\r\n    # JSONファイルの絶対パスを取得\r\n    json_file = open(path, \"r\", encoding=\"utf-8\")\r\n    # JSONファイルをロード\r\n    json_data = json.load(json_file)\r\n    # JSONファイルからグラフマップを復原\r\n    graph = nx.readwrite.json_graph.node_link_graph(json_data)\r\n    return graph\r\n\r\ndef draw_graph(graph):\r\n    # グラフを描画\r\n    pos = {i : [tag[\"x\"], tag[\"y\"]] for i, tag in graph.nodes(data=True)}\r\n    nx.draw_networkx(graph, pos, with_labels=False, alpha=0.5, edge_color='steelblue', node_color='steelblue')\r\n    plt.axis(\"off\")\r\n    plt.show()\r\n\r\n\r\ndef conv_complete_graph(graph):\r\n    # グラフマップを完全グラフに変換\r\n    complete_graph = nx.Graph()\r\n    # node\r\n    for node, tag in graph.nodes(data=True):\r\n        #if not node[:2] in (\"部屋\", \"教室\"): continue\r\n        if not node in(\"研究室1\", \"研究室5\", \"研究室8\", \"研究室9\", \"研究室14\", \"教室1\", \"教室2\", \"教室3\", \"教室4\"): continue\r\n        #if not node in(\"部屋9\", \"教室1\", \"教室2\"): continue\r\n        complete_graph.add_node(node, x=tag[\"x\"], y=tag[\"y\"])\r\n    # edge\r\n    for node1, node2 in combinations(complete_graph.nodes, 2):\r\n        path = nx.dijkstra_path(graph, node1, node2)\r\n        length = nx.dijkstra_path_length(graph, node1, node2)\r\n        complete_graph.add_edge(node1, node2, weight=length, path=path)\r\n    return complete_graph\r\n\r\n\r\ndef calc_route(complete_graph):\r\n    # 完全グラフで最短巡回路を計算\r\n    tsp = nx.approximation.traveling_salesman_problem\r\n    SA_tsp = nx.approximation.simulated_annealing_tsp\r\n    method = lambda G, wt: SA_tsp(G, \"greedy\", weight=wt, temp=500)\r\n    complete_route = tsp(complete_graph, weight='weight', nodes=complete_graph.nodes(), cycle=True, method=method)\r\n    return complete_route\r\n\r\n\r\ndef draw_complete_graph_highlight(graph, route):\r\n    # 完全グラフと巡回路を描画\r\n    route_edges = set(zip(route, route[1:]))\r\n    pos = {i : [tag[\"x\"], tag[\"y\"]] for i, tag in graph.nodes(data=True)}\r\n    edge_labels = {(i, j) : \"・\".join(tag[\"path\"])  for i, j, tag in graph.edges(data=True) if (i, j) in route_edges or (j, i) in route_edges}\r\n    #nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels, font_color='blueviolet', font_family=\"MS Gothic\")\r\n    nx.draw_networkx(graph, pos, with_labels=False, alpha=0.5, edge_color='steelblue', node_color='steelblue')\r\n    nx.draw_networkx_edges(graph, pos, edgelist=route_edges, alpha=0.5, edge_color='deeppink')\r\n    nx.draw_networkx_nodes(graph, pos, nodelist=route[:-1], alpha=0.5, node_color='deeppink')\r\n    plt.axis(\"off\")\r\n    plt.show()\r\n    \r\n\r\ndef get_edges(complete_route, complete_graph):\r\n    # 完全グラフで求めた巡回路をグラフマップに適用\r\n    edges = []\r\n    route = []\r\n    for edge in zip(complete_route, complete_route[1:]):\r\n        for i, j, tag in complete_graph.edges(data=True):\r\n            if (i, j) == edge:\r\n                path = tag[\"path\"]\r\n                edges.extend(e for e in zip(path, path[1:]))\r\n                route.extend(path[:-1])\r\n            elif (j, i) == edge:\r\n                path = tag[\"path\"][::-1]\r\n                edges.extend(e for e in zip(path, path[1:]))\r\n                route.extend(path[:-1])\r\n    route.append(route[0])\r\n    return route, edges\r\n\r\n\r\ndef draw_graph_highlight(graph, route, route_edges):\r\n    # グラフマップと巡回路を描画\r\n    pos = {i : [tag[\"x\"], tag[\"y\"]] for i, tag in graph.nodes(data=True)}\r\n    #edge_labels = {(i, j) : tag[\"weight\"] for i, j, tag in graph.edges(data=True) if (i, j) in route_edges or (j, i) in route_edges}\r\n    #nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels, font_color='blueviolet', font_family=\"MS Gothic\")\r\n    nx.draw_networkx(graph, pos, with_labels=False, alpha=0.5, edge_color='steelblue', node_color='steelblue')\r\n    nx.draw_networkx_edges(graph, pos, edgelist=route_edges, alpha=1, edge_color='deeppink')\r\n    nx.draw_networkx_nodes(graph, pos, nodelist=route[:-1], alpha=0.5, node_color='deeppink')\r\n    nx.draw_networkx_nodes(graph, pos, nodelist=[\"教室1\"], alpha=1, node_color='deeppink')\r\n    plt.axis(\"off\")\r\n    plt.show()\r\n    \r\n\r\ngraph = read_json_file(str(IN[0]))\r\n#draw_graph(graph)\r\ncomplete_graph = conv_complete_graph(graph)\r\ncomplete_route = calc_route(complete_graph)\r\n#draw_complete_graph_highlight(complete_graph, complete_route)\r\nroute, edges = get_edges(complete_route, complete_graph)\r\ndraw_graph_highlight(graph, route, edges)\r\nOUT = route",
+      "Engine": "CPython3",
+      "VariableInputPorts": true,
+      "Id": "f69972ccd75a432b93d957115cb173d1",
+      "Inputs": [
+        {
+          "Id": "a08f7368c15a42a18d6709c9a7352495",
+          "Name": "IN[0]",
+          "Description": "Input #0",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "11a681a8a30445e3923eb5b0efe562c2",
+          "Name": "OUT",
+          "Description": "Python スクリプトの結果",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "埋め込み Python スクリプトを実行します。"
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.Directory, CoreNodeModels",
+      "HintPath": "C:\\Users\\shota\\Downloads",
+      "InputValue": "C:\\Users\\shota\\Downloads",
+      "NodeType": "ExtensionNode",
+      "Id": "f9c8e18f26a24dcd9f295a55c45e556b",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "a576e971ce224363ac9537e2f531d3d8",
+          "Name": "",
+          "Description": "フォルダ パス",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "システム上の任意のフォルダを選択して、そのパスを取得することができます"
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.StringInput, CoreNodeModels",
+      "NodeType": "StringInputNode",
+      "InputValue": "nx_path",
+      "Id": "2451ecb4e8854883826e6ffb1bb69cce",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "7b777b1a535442a7ba0b567a4d95ee79",
+          "Name": "",
+          "Description": "String",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "文字列を作成します。"
+    },
+    {
+      "ConcreteType": "Dynamo.Graph.Nodes.ZeroTouch.DSFunction, DynamoCore",
+      "NodeType": "FunctionNode",
+      "FunctionSignature": "DSCore.Data.StringifyJSON@var[]..[]",
+      "Id": "1db71d703b444679b47a20e21560da2c",
+      "Inputs": [
+        {
+          "Id": "95dc7d7b753a44e7a140ccd31d936812",
+          "Name": "values",
+          "Description": "値のリスト\n\nvar[]..[]",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "12b457f8a4134265a77f6a2d5b313a5d",
+          "Name": "json",
+          "Description": "JSON 文字列は、プリミティブ型(たとえば、倍精度浮動小数点数、整数、ブール)、リスト、ディクショナリが関連付けられた JSON 型に変換されます。",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Auto",
+      "Description": "Stringify は、任意の値または任意の値のリストを JSON に変換します。複製は、リスト上の操作に適用するために使用でき、JSON 文字列のリストを生成します。\n\nData.StringifyJSON (values: var[]..[]): string"
+    },
+    {
+      "ConcreteType": "Dynamo.Graph.Nodes.CodeBlockNodeModel, DynamoCore",
+      "NodeType": "CodeBlockNode",
+      "Code": "path + \"\\\\\" + name + \".json\";",
+      "Id": "44a91bdfc2d049ccba1c46aabc12a862",
+      "Inputs": [
+        {
+          "Id": "3dcaa0e0e90a474e9594fc7095c02e3a",
+          "Name": "path",
+          "Description": "path",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "e95e36f15327400d946df3898746742b",
+          "Name": "name",
+          "Description": "name",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "0f72f571045e4713a45204febe55e479",
+          "Name": "",
+          "Description": "行 1 の式の値",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "DesignScript のコードを直接作成することができます。"
+    },
+    {
+      "ConcreteType": "Dynamo.Graph.Nodes.ZeroTouch.DSFunction, DynamoCore",
+      "NodeType": "FunctionNode",
+      "FunctionSignature": "DSCore.IO.FileSystem.WriteText@string,string",
+      "Id": "db6e7daa6eaa4fce836619ecd9d09385",
+      "Inputs": [
+        {
+          "Id": "dd23cc41500c4296a5df9cce81e01a4a",
+          "Name": "filePath",
+          "Description": "書き込み先のパス\n\nstring",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        },
+        {
+          "Id": "ef98914008b7478d9087e35cae3025c4",
+          "Name": "text",
+          "Description": "文字コンテンツ\n\nstring",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "81e65bd7561b40b6b7e805989f07cfcd",
+          "Name": "void",
+          "Description": "出力なし",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Auto",
+      "Description": "パスで指定されたファイルに文字コンテンツを書き込みます\n\nFileSystem.WriteText (filePath: string, text: string): void"
+    },
+    {
+      "ConcreteType": "CoreNodeModels.Input.Filename, CoreNodeModels",
+      "HintPath": "C:\\Users\\shota\\Downloads\\nx_graph.json",
+      "InputValue": "..\\..\\..\\Downloads\\nx_graph.json",
+      "NodeType": "ExtensionNode",
+      "Id": "776a69f4b2bc4592882ce3c0e72c5621",
+      "Inputs": [],
+      "Outputs": [
+        {
+          "Id": "66033fc4b36e48b89881ed7ef21c0fd4",
+          "Name": "",
+          "Description": "ファイル パス",
+          "UsingDefaultValue": false,
+          "Level": 2,
+          "UseLevels": false,
+          "KeepListStructure": false
+        }
+      ],
+      "Replication": "Disabled",
+      "Description": "システム上の任意のファイルを選択して、そのファイル パスを取得できます。"
+    }
+  ],
+  "Connectors": [
+    {
+      "Start": "11a681a8a30445e3923eb5b0efe562c2",
+      "End": "95dc7d7b753a44e7a140ccd31d936812",
+      "Id": "f389353f82f04d14b9859ce2393f0ce0"
+    },
+    {
+      "Start": "a576e971ce224363ac9537e2f531d3d8",
+      "End": "3dcaa0e0e90a474e9594fc7095c02e3a",
+      "Id": "aef1dcf4a1834534b49c5599ccb1b32c"
+    },
+    {
+      "Start": "7b777b1a535442a7ba0b567a4d95ee79",
+      "End": "e95e36f15327400d946df3898746742b",
+      "Id": "f901a37b6e9a476a9fe5ee2d81f693c4"
+    },
+    {
+      "Start": "12b457f8a4134265a77f6a2d5b313a5d",
+      "End": "ef98914008b7478d9087e35cae3025c4",
+      "Id": "5f5ad2520ce34cb7905ed141bcd1859d"
+    },
+    {
+      "Start": "0f72f571045e4713a45204febe55e479",
+      "End": "dd23cc41500c4296a5df9cce81e01a4a",
+      "Id": "5c12bf0d370a46519807cae57ec3a7eb"
+    },
+    {
+      "Start": "66033fc4b36e48b89881ed7ef21c0fd4",
+      "End": "a08f7368c15a42a18d6709c9a7352495",
+      "Id": "43210963b09748fba8b13992a43b8087"
+    }
+  ],
+  "Dependencies": [],
+  "NodeLibraryDependencies": [],
+  "Thumbnail": "",
+  "GraphDocumentationURL": null,
+  "ExtensionWorkspaceData": [
+    {
+      "ExtensionGuid": "28992e1d-abb9-417f-8b1b-05e053bee670",
+      "Name": "Properties",
+      "Version": "2.12",
+      "Data": {}
+    },
+    {
+      "ExtensionGuid": "DFBD9CC0-DB40-457A-939E-8C8555555A9D",
+      "Name": "Generative Design",
+      "Version": "1.10",
+      "Data": {}
+    }
+  ],
+  "Author": "None provided",
+  "Linting": {
+    "activeLinter": "なし",
+    "activeLinterId": "7b75fb44-43fd-4631-a878-29f4d5d8399a",
+    "warningCount": 0,
+    "errorCount": 0
+  },
+  "Bindings": [],
+  "View": {
+    "Dynamo": {
+      "ScaleFactor": 1.0,
+      "HasRunWithoutCrash": true,
+      "IsVisibleInDynamoLibrary": true,
+      "Version": "2.12.0.5650",
+      "RunType": "Manual",
+      "RunPeriod": "1000"
+    },
+    "Camera": {
+      "Name": "背景プレビュー",
+      "EyeX": -14.434393882751465,
+      "EyeY": 24.236469268798828,
+      "EyeZ": 53.516700744628906,
+      "LookX": 9.637263298034668,
+      "LookY": 5.9388389587402344,
+      "LookZ": -59.572231292724609,
+      "UpX": -0.049349457025527954,
+      "UpY": 0.95105654001235962,
+      "UpZ": 0.30505102872848511
+    },
+    "NodeViews": [
+      {
+        "ShowGeometry": true,
+        "Name": "Python Script",
+        "Id": "f69972ccd75a432b93d957115cb173d1",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 1372.26228854377,
+        "Y": 1228.1691293436
+      },
+      {
+        "ShowGeometry": true,
+        "Name": "Directory Path",
+        "Id": "f9c8e18f26a24dcd9f295a55c45e556b",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 1589.5257650037029,
+        "Y": 1161.3607241476404
+      },
+      {
+        "ShowGeometry": true,
+        "Name": "file name",
+        "Id": "2451ecb4e8854883826e6ffb1bb69cce",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 1587.4032341709574,
+        "Y": 1252.6295499557596
+      },
+      {
+        "ShowGeometry": true,
+        "Name": "Data.StringifyJSON",
+        "Id": "1db71d703b444679b47a20e21560da2c",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 1587.3496790344575,
+        "Y": 1345.8711693558196
+      },
+      {
+        "ShowGeometry": true,
+        "Name": "Code Block",
+        "Id": "44a91bdfc2d049ccba1c46aabc12a862",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 1799.7528256232274,
+        "Y": 1165.5808350335994
+      },
+      {
+        "ShowGeometry": true,
+        "Name": "FileSystem.WriteText",
+        "Id": "db6e7daa6eaa4fce836619ecd9d09385",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 2183.7805129715075,
+        "Y": 1199.8787239037194
+      },
+      {
+        "ShowGeometry": true,
+        "Name": "File Path",
+        "Id": "776a69f4b2bc4592882ce3c0e72c5621",
+        "IsSetAsInput": false,
+        "IsSetAsOutput": false,
+        "Excluded": false,
+        "X": 1140.7742811441897,
+        "Y": 1227.8979291986811
+      }
+    ],
+    "Annotations": [
+      {
+        "Id": "581bcd0beca7475db2d67f03d71d6f7b",
+        "Title": "export json route file",
+        "Nodes": [
+          "1db71d703b444679b47a20e21560da2c",
+          "44a91bdfc2d049ccba1c46aabc12a862",
+          "db6e7daa6eaa4fce836619ecd9d09385",
+          "2451ecb4e8854883826e6ffb1bb69cce",
+          "f9c8e18f26a24dcd9f295a55c45e556b"
+        ],
+        "Left": 1577.3496790344575,
+        "Top": 1108.3607241476404,
+        "Width": 807.43083393705,
+        "Height": 330.51044520817914,
+        "FontSize": 36.0,
+        "InitialTop": 1161.3607241476404,
+        "InitialHeight": 329.51044520817914,
+        "TextblockHeight": 43.0,
+        "Background": "#FFA4E1FF"
+      }
+    ],
+    "X": -1302.099639659484,
+    "Y": -1010.7205448521769,
+    "Zoom": 0.9791085736253482
+  }
+}
